@@ -21,6 +21,16 @@ export default class Board extends React.Component {
       complete: React.createRef(),
     }
   }
+  // Making cards on the swimlanes dragable 
+  componentDidMount(){
+    const containers = [
+      this.swimlanes.backlog.current,
+      this.swimlanes.inProgress.current,
+      this.swimlanes.complete.current
+
+    ]
+    Dragula(containers)
+  }
   getClients() {
     return [
       ['1','Stark, White and Abbott','Cloned Optimal Architecture', 'in-progress'],
