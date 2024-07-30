@@ -16,7 +16,8 @@ export default class Swimlane extends React.Component {
       );
     })
     return (
-      <div className="Swimlane-column">
+      // Adding class same as the name of the swimlane
+      <div className={`Swimlane-column ${this.props.className}`}>
         <div className="Swimlane-title">{this.props.name}</div>
         <div className="Swimlane-dragColumn" ref={this.props.dragulaRef}>
           {cards}

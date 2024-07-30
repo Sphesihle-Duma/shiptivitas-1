@@ -28,8 +28,29 @@ export default class Board extends React.Component {
       this.swimlanes.inProgress.current,
       this.swimlanes.complete.current
 
-    ]
-    Dragula(containers)
+    ];
+    // changing the color of the cards when are drag and from and into the swimlanes
+
+    const drake = Dragula(containers)
+
+    drake.on('drag', (el) => {
+      el.classList.add('dragging')
+    })
+
+    drake.on('dragend', (el) => {
+      el.classList.remove('dragging')
+      el.classList.remove('Card-grey', 'Card-blue', 'Card-green')
+
+      if(el.closest('.backlog')){
+        el.classList.add('Card-grey')
+      }
+      else if(el.closest('.inprogress')){
+        el.classList.add('Card-blue')
+      }
+      else if(el.closest('.complete')){
+        el.classList.add('Card-green')
+      }
+    })
   }
   getClients() {
     return [
@@ -60,9 +81,11 @@ export default class Board extends React.Component {
       status: companyDetails[3],
     }));
   }
+  // Updating swimlane to use the class name props
   renderSwimlane(name, clients, ref) {
+    const swimlaneClass = name.replace(/\s+/g, '').toLowerCase()
     return (
-      <Swimlane name={name} clients={clients} dragulaRef={ref}/>
+      <Swimlane className={swimlaneClass} name={name} clients={clients} dragulaRef={ref}/>
     );
   }
 
