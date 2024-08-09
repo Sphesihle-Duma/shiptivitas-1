@@ -1,3 +1,4 @@
+
 import React from 'react';
 import Dragula from 'dragula';
 import 'dragula/dist/dragula.css';
@@ -7,12 +8,12 @@ import './Board.css';
 export default class Board extends React.Component {
   constructor(props) {
     super(props);
-    //const clients = this.getClients();
+    const clients = this.getClients();
     this.state = {
       clients: {
-        backlog: [], //clients.filter(client => !client.status || client.status === 'backlog'),
-        inProgress: [], //clients.filter(client => client.status && client.status === 'in-progress'),
-        complete: [], //clients.filter(client => client.status && client.status === 'complete'),
+        backlog: clients.filter(client => !client.status || client.status === 'backlog'),
+        inProgress: clients.filter(client => client.status && client.status === 'in-progress'),
+        complete: clients.filter(client => client.status && client.status === 'complete'),
       }
     }
     this.swimlanes = {
@@ -21,136 +22,105 @@ export default class Board extends React.Component {
       complete: React.createRef(),
     }
   }
-  // Making cards on the swimlanes dragable 
- async componentDidMount(){
-    await this.getClients()
-    this.setupDragula()
+componentDidMount(){
+  this.drake = Dragula([
+    this.swimlanes.backlog.current,
+    this.swimlanes.inProgress.current,
+    this.swimlanes.complete.current,
+  ])
+  this.drake.on('drop', (el, target, source, sibling) => this.updateClient(el, target, source, sibling));
+}
+
+componentWillUnmount(){
+  this.drake.remove();
+}
+
+/*
+ * Change the status of client when a Card is moved
+ */
+updateClient(el, target, _, sibling){
+
+   // Reverting DOM changes from Dragula
+
+   this.drake.cancel(true);
+
+   // Find out which swimlane the Card was moved to
+
+  let targetSwimlane = "backlog";
+  if(target === this.swimlanes.inProgress.current){
+    targetSwimlane = "in-progress";
+  }
+  else if(target === this.swimlanes.complete.current){
+    targetSwimlane = "complete";
   }
 
-  async updateClientPositions(){
-   let backlogPriority = 0;
-   let inProgressPriority = 0;
-   let completePriority = 0;
-    const allClients = [...this.state.clients.backlog, 
-      ...this.state.clients.complete, 
-      ...this.state.clients.inProgress
-
-    ].map(client => {
-      const element = document.querySelector(`[data-id='${client.id}']`);
-      if(element.closest('.backlog')){
-        client.status = "backlog"
-      }
-      else if(element.closest('.inprogress')){
-        client.status = "in-progress"
-      }
-      else if(element.closest('.complete')){
-        client.status = "complete"
-      }
-
-      return client
-    }).map(client =>{
-      if(client.status ==="backlog"){
-        backlogPriority += 1 
-        client.priority = backlogPriority
-      } 
-      else if(client.status ==="in-progress"){
-        inProgressPriority += 1
-        client.priority = inProgressPriority
-      }
-      else if(client.status === "complete"){
-        completePriority += 1
-        client.priority = completePriority 
-      }
-      return client
-    })
-
-    //const sortedClients = allClients.sort((a, b) => a.priority - b.priority)
-
-    console.log("sending data", allClients)
-    try {
-      const response = await fetch("http://localhost:3001/api/v1/clients/update-positions", {
-        method: 'POST',
-        headers: {
-          'Content-Type': "application/json"
-        },
-        body: JSON.stringify(allClients)
-      })
-      const data = await response.json();
-      console.log(data)
-      
-    } catch (error) {
-      console.error("Error updating client positions", error);
-      
-    }    
+  // Create a new clients array
+  const clientsList = [
+    ...this.state.clients.backlog,
+    ...this.state.clients.inProgress,
+    ...this.state.clients.complete,
+  ];
+  // grabbing the card that was moved from the newly created array of all cards
+  const clientThatMoved = clientsList.find(client => client.id === el.dataset.id);
+  
+  // Updating the status of the dragged and droped card
+  const clientThatMovedClone ={
+    ...clientThatMoved,
+    status: targetSwimlane,
   }
   
 
+  // Remove ClientThatMoved from the clientList
+  const updatedClients = clientsList.filter(client => client.id !== clientThatMovedClone.id);
+
+  // Place ClientThatMoved just before the sibling client, keeping the order
+  const index = updatedClients.findIndex(client => sibling && client.id === sibling.dataset.id);
   
-  // Fetching all clients from the database
-  getClients = async() => {
-    try {
-      const response = await fetch('http://localhost:3001/api/v1/clients');
-      const returnData = await response.json();
-      console.log("Returned array", returnData)
-      this.setState({
-        clients: {
-          backlog: returnData.filter(client => !client.status || client.status === 'backlog').sort((a, b) => a.priority - b.priority),
-          inProgress: returnData.filter(client => client.status && client.status === 'in-progress').sort((a, b) => a.priority - b.priority),
-          complete: returnData.filter(client => client.status && client.status === 'complete').sort((a, b) => a.priority - b.priority),
-        },
-      });
+  // Inserting the client at the correct place.
+  updatedClients.splice(index === -1 ? updatedClients.length : index , 0, clientThatMovedClone);
 
-
-      
-    } catch (error) {
-      console.log("Error fetching data for the clients:", error)
+  // Update React state to reflect changes
+  this.setState({
+    clients: {
+      backlog: updatedClients.filter(client => !client.status || client.status === 'backlog'),
+      inProgress: updatedClients.filter(client => client.status && client.status === 'in-progress'),
+      complete: updatedClients.filter(client => client.status && client.status === 'complete'),
     }
+  });
+}
+
+  getClients() {
+    return [
+      ['1','Stark, White and Abbott','Cloned Optimal Architecture', 'in-progress'],
+      ['2','Wiza LLC','Exclusive Bandwidth-Monitored Implementation', 'complete'],
+      ['3','Nolan LLC','Vision-Oriented 4Thgeneration Graphicaluserinterface', 'backlog'],
+      ['4','Thompson PLC','Streamlined Regional Knowledgeuser', 'in-progress'],
+      ['5','Walker-Williamson','Team-Oriented 6Thgeneration Matrix', 'in-progress'],
+      ['6','Boehm and Sons','Automated Systematic Paradigm', 'backlog'],
+      ['7','Runolfsson, Hegmann and Block','Integrated Transitional Strategy', 'backlog'],
+      ['8','Schumm-Labadie','Operative Heuristic Challenge', 'backlog'],
+      ['9','Kohler Group','Re-Contextualized Multi-Tasking Attitude', 'backlog'],
+      ['10','Romaguera Inc','Managed Foreground Toolset', 'backlog'],
+      ['11','Reilly-King','Future-Proofed Interactive Toolset', 'complete'],
+      ['12','Emard, Champlin and Runolfsdottir','Devolved Needs-Based Capability', 'backlog'],
+      ['13','Fritsch, Cronin and Wolff','Open-Source 3Rdgeneration Website', 'complete'],
+      ['14','Borer LLC','Profit-Focused Incremental Orchestration', 'backlog'],
+      ['15','Emmerich-Ankunding','User-Centric Stable Extranet', 'in-progress'],
+      ['16','Willms-Abbott','Progressive Bandwidth-Monitored Access', 'in-progress'],
+      ['17','Brekke PLC','Intuitive User-Facing Customerloyalty', 'complete'],
+      ['18','Bins, Toy and Klocko','Integrated Assymetric Software', 'backlog'],
+      ['19','Hodkiewicz-Hayes','Programmable Systematic Securedline', 'backlog'],
+      ['20','Murphy, Lang and Ferry','Organized Explicit Access', 'backlog'],
+    ].map(companyDetails => ({
+      id: companyDetails[0],
+      name: companyDetails[1],
+      description: companyDetails[2],
+      status: companyDetails[3],
+    }));
   }
-
-  setupDragula = () => {
-    const containers = [
-      this.swimlanes.backlog.current,
-      this.swimlanes.inProgress.current,
-      this.swimlanes.complete.current
-
-    ];
-    // changing the color of the cards when are drag and from and into the swimlanes
-
-    const drake = Dragula(containers)
-
-    drake.on('drag', (el) => {
-      el.classList.add('dragging')
-    })
-
-    drake.on('dragend', (el) => {
-      el.classList.remove('dragging')
-      el.classList.remove('Card-grey', 'Card-blue', 'Card-green')
-    
-      if(el.closest('.backlog')){
-        el.classList.add('Card-grey')
-      }
-      else if(el.closest('.inprogress')){
-        el.classList.add('Card-blue')
-      }
-      else if(el.closest('.complete')){
-        el.classList.add('Card-green')
-      }
-      this.updateClientPositions()
-      
-    })
-    
-    containers.forEach(container =>{
-      container.addEventListener('touchmove', this.preventDefault, {passive: false})
-    })
-  }
-  preventDefault = (e)=>{
-    e.preventDefault();
-  }
-  // Updating swimlane to use the class name props
   renderSwimlane(name, clients, ref) {
-    const swimlaneClass = name.replace(/\s+/g, '').toLowerCase()
     return (
-      <Swimlane className={swimlaneClass} name={name} clients={clients} dragulaRef={ref}/>
+      <Swimlane name={name} clients={clients} dragulaRef={ref}/>
     );
   }
 
@@ -174,4 +144,3 @@ export default class Board extends React.Component {
     );
   }
 }
-
