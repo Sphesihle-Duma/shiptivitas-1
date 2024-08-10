@@ -8,12 +8,11 @@ import './Board.css';
 export default class Board extends React.Component {
   constructor(props) {
     super(props);
-    const clients = this.getClients();
     this.state = {
       clients: {
-        backlog: clients.filter(client => !client.status || client.status === 'backlog'),
-        inProgress: clients.filter(client => client.status && client.status === 'in-progress'),
-        complete: clients.filter(client => client.status && client.status === 'complete'),
+        backlog: [], //clients.filter(client => !client.status || client.status === 'backlog'),
+        inProgress: [], // clients.filter(client => client.status && client.status === 'in-progress'),
+        complete: [] // clients.filter(client => client.status && client.status === 'complete'),
       }
     }
     this.swimlanes = {
@@ -22,23 +21,54 @@ export default class Board extends React.Component {
       complete: React.createRef(),
     }
   }
-componentDidMount(){
-  this.drake = Dragula([
-    this.swimlanes.backlog.current,
-    this.swimlanes.inProgress.current,
-    this.swimlanes.complete.current,
-  ])
-  this.drake.on('drop', (el, target, source, sibling) => this.updateClient(el, target, source, sibling));
-}
+  async componentDidMount() {
+    try {
+      const clients = await this.getClients();
+      this.setState({
+        clients: {
+          backlog: clients.filter(client => !client.status || client.status === 'backlog'),
+          inProgress: clients.filter(client => client.status && client.status === 'in-progress'),
+          complete: clients.filter(client => client.status && client.status === 'complete'),
+        }
+      }, () => {
+        // Initialize Dragula in the callback to ensure state is updated
+        this.initializeDragula();
+      });
+    } catch (error) {
+      console.error("Error fetching clients data:", error);
+    }
+  }
+  
+  
+  
+  
+  // Method to initialize Dragula
+  initializeDragula() {
 
-componentWillUnmount(){
-  this.drake.remove();
-}
+    this.drake = Dragula([
+      this.swimlanes.backlog.current,
+      this.swimlanes.inProgress.current,
+      this.swimlanes.complete.current,
+    ]);
+  
+    this.drake.on('drop', (el, target, source, sibling) => {
+      this.updateClient(el, target, source, sibling)});
+  }
+
+  
+  componentWillUnmount() {
+    if (this.drake) {
+      this.drake.destroy(); // Properly destroy Dragula instance
+    }
+  }
+  
+
+
 
 /*
  * Change the status of client when a Card is moved
  */
-updateClient(el, target, _, sibling){
+async updateClient(el, target, _, sibling){
 
    // Reverting DOM changes from Dragula
 
@@ -60,64 +90,77 @@ updateClient(el, target, _, sibling){
     ...this.state.clients.inProgress,
     ...this.state.clients.complete,
   ];
-  // grabbing the card that was moved from the newly created array of all cards
-  const clientThatMoved = clientsList.find(client => client.id === el.dataset.id);
   
+  // grabbing the card that was moved from the newly created array of all cards
+  const clientThatMoved = clientsList.find(client => client.id === Number(el.dataset.id));
+  console.log("client that moved", clientThatMoved)
   // Updating the status of the dragged and droped card
   const clientThatMovedClone ={
     ...clientThatMoved,
     status: targetSwimlane,
   }
   
-
   // Remove ClientThatMoved from the clientList
   const updatedClients = clientsList.filter(client => client.id !== clientThatMovedClone.id);
 
   // Place ClientThatMoved just before the sibling client, keeping the order
-  const index = updatedClients.findIndex(client => sibling && client.id === sibling.dataset.id);
-  
+  const index = updatedClients.findIndex(client => sibling && client.id === Number(sibling.dataset.id));
+  console.log("The index", index)
   // Inserting the client at the correct place.
   updatedClients.splice(index === -1 ? updatedClients.length : index , 0, clientThatMovedClone);
 
-  // Update React state to reflect changes
-  this.setState({
+
+  console.log("sending Data", updatedClients)
+  
+  // Send updated order to the backend
+  try {
+    const response = await fetch('http://localhost:3001/api/v1/clients/update-positions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updatedClients),
+    });
+
+    if(!response.ok){
+      throw new Error("Failed to update client positions");
+    }
+    const result = await response.json()
+     console.log(result)
+
+    if(result.status === "updated"){
+      
+
+       // Update React state to reflect changes
+   this.setState({
     clients: {
       backlog: updatedClients.filter(client => !client.status || client.status === 'backlog'),
       inProgress: updatedClients.filter(client => client.status && client.status === 'in-progress'),
       complete: updatedClients.filter(client => client.status && client.status === 'complete'),
-    }
+    },
+  }, () => {
+    console.log('Updated state:', this.state.clients);
   });
+
+    }
+  } catch (error) {
+    console.error("Error updating client positions", error);
+  }
+
+
+ 
+ 
+
 }
 
-  getClients() {
-    return [
-      ['1','Stark, White and Abbott','Cloned Optimal Architecture', 'in-progress'],
-      ['2','Wiza LLC','Exclusive Bandwidth-Monitored Implementation', 'complete'],
-      ['3','Nolan LLC','Vision-Oriented 4Thgeneration Graphicaluserinterface', 'backlog'],
-      ['4','Thompson PLC','Streamlined Regional Knowledgeuser', 'in-progress'],
-      ['5','Walker-Williamson','Team-Oriented 6Thgeneration Matrix', 'in-progress'],
-      ['6','Boehm and Sons','Automated Systematic Paradigm', 'backlog'],
-      ['7','Runolfsson, Hegmann and Block','Integrated Transitional Strategy', 'backlog'],
-      ['8','Schumm-Labadie','Operative Heuristic Challenge', 'backlog'],
-      ['9','Kohler Group','Re-Contextualized Multi-Tasking Attitude', 'backlog'],
-      ['10','Romaguera Inc','Managed Foreground Toolset', 'backlog'],
-      ['11','Reilly-King','Future-Proofed Interactive Toolset', 'complete'],
-      ['12','Emard, Champlin and Runolfsdottir','Devolved Needs-Based Capability', 'backlog'],
-      ['13','Fritsch, Cronin and Wolff','Open-Source 3Rdgeneration Website', 'complete'],
-      ['14','Borer LLC','Profit-Focused Incremental Orchestration', 'backlog'],
-      ['15','Emmerich-Ankunding','User-Centric Stable Extranet', 'in-progress'],
-      ['16','Willms-Abbott','Progressive Bandwidth-Monitored Access', 'in-progress'],
-      ['17','Brekke PLC','Intuitive User-Facing Customerloyalty', 'complete'],
-      ['18','Bins, Toy and Klocko','Integrated Assymetric Software', 'backlog'],
-      ['19','Hodkiewicz-Hayes','Programmable Systematic Securedline', 'backlog'],
-      ['20','Murphy, Lang and Ferry','Organized Explicit Access', 'backlog'],
-    ].map(companyDetails => ({
-      id: companyDetails[0],
-      name: companyDetails[1],
-      description: companyDetails[2],
-      status: companyDetails[3],
-    }));
+ async getClients() {
+    
+    const response = await fetch('http://localhost:3001/api/v1/clients');
+    const returnData = await response.json();
+    console.log("returned data", returnData)
+    return returnData;
   }
+
   renderSwimlane(name, clients, ref) {
     return (
       <Swimlane name={name} clients={clients} dragulaRef={ref}/>
